@@ -35,8 +35,8 @@ $(call inherit-product, hardware/broadcom/wlan/bcmdhd/firmware/bcm4343/device-bc
 
 # AAPT configuration
 PRODUCT_AAPT_CONFIG := normal
-PRODUCT_AAPT_PREF_CONFIG := hdpi
-PRODUCT_AAPT_PREBUILT_DPI := hdpi mdpi ldpi
+PRODUCT_AAPT_PREF_CONFIG := mdpi
+PRODUCT_AAPT_PREBUILT_DPI := mdpi ldpi
 
 # Boot animation
 TARGET_SCREEN_HEIGHT := 480
