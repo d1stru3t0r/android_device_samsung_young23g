@@ -1,0 +1,48 @@
+# Graphics
+ro.sf.lcd_density=160
+ro.sf.lcd_width=36
+ro.sf.lcd_height=54
+ro.opengles.version=131072
+debug.hwui.render_dirty_regions=false
+
+# DRM
+drm.service.enabled=1
+
+# Strict Mode
+persist.sys.strictmode.disable=1
+
+# RIL
+persist.modem.w.enable=1
+ro.modem.w.dev=/dev/cpw
+ro.modem.w.tty=/dev/stty_w
+ro.modem.w.eth=rmnet
+ro.modem.w.snd=2
+ro.modem.w.diag=/dev/slog_w
+ro.modem.w.loop=/dev/spipe_w0
+ro.modem.w.nv=/dev/spipe_w1
+ro.modem.w.assert=/dev/spipe_w2
+ro.modem.w.vbc=/dev/spipe_w6
+ro.modem.w.id=0
+ro.modem.w.count=2
+ro.com.android.dataroaming=false
+ro.msms.phone_count=2
+persist.msms.phone_count=2
+persist.msmslt=0
+persist.sys.modem.diag=,gser
+sys.usb.gser.count=2
+ro.ril.hsxpa=1
+ro.ril.gprsclass=10
+persist.radio.multisim.config=dsds
+ro.telephony.ril_class=young23gRIL
+ro.telephony.prop_class=young23gRIL$TelephonyPropertyProvider
+ro.telephony.ril.config=setPrefNwTypeOnUnsolConnected,simactivation,sim2gsmonly
+ro.telephony.ril.socket_name=rild,rild1,rild2
+ro.ril.telephony.mqanelements=6
+
+# zRAM
+ro.config.zram.compressor=lz4
+ro.config.zram.disksize=128M
+ro.config.swappiness=100
+
+# ADB
+persist.sys.adb.shell=/system/xbin/bash
