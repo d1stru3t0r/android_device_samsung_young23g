@@ -26,11 +26,13 @@ import android.os.SystemProperties;
 import android.telephony.Rlog;
 import android.telephony.PhoneNumberUtils;
 import android.telephony.ModemActivityInfo;
-import android.telephony.SubscriptionManager;
-import android.telephony.TelephonyManager;
 
 import com.android.internal.telephony.uicc.SpnOverride;
 import com.android.internal.telephony.RILConstants;
+
+import java.io.IOException;
+
+import java.lang.Runtime;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -41,67 +43,16 @@ import java.util.Collections;
  *
  * {@hide}
  */
-public class young23gRIL extends SamsungSPRDRIL implements CommandsInterface {
+public class young23gRIL extends RIL implements CommandsInterface {
 
-    public static class TelephonyPropertyProvider implements TelephonyManager.TelephonyPropertyProvider {
+    public static final int RIL_UNSOL_DEVICE_READY_NOTI = 11008;
+    public static final int RIL_UNSOL_AM = 11010;
+    public static final int RIL_UNSOL_SIM_PB_READY = 11021;
 
-        public TelephonyPropertyProvider() { }
+    protected static final byte[] RAW_HOOK_OEM_CMD_SWITCH_DATAPREFER;
 
-        @Override
-        public void setTelephonyProperty(int phoneId, String property, String value) {
-            if (SubscriptionManager.isValidPhoneId(phoneId)) {
-                String actualProp = getActualProp(phoneId, property);
-                String propVal = value == null ? "" : value;
-                if (actualProp.length() > SystemProperties.PROP_NAME_MAX
-                        || propVal.length() > SystemProperties.PROP_VALUE_MAX) {
-                    Rlog.d(RILJ_LOG_TAG, "setTelephonyProperty: property to long" +
-                            " phoneId=" + phoneId +
-                            " property=" + property +
-                            " value=" + value +
-                            " actualProp=" + actualProp +
-                            " propVal" + propVal);
-                } else {
-                    Rlog.d(RILJ_LOG_TAG, "setTelephonyProperty: success" +
-                            " phoneId=" + phoneId +
-                            " property=" + property +
-                            " value=" + value +
-                            " actualProp=" + actualProp +
-                            " propVal=" + propVal);
-                    SystemProperties.set(actualProp, propVal);
-                }
-            } else {
-                Rlog.d(RILJ_LOG_TAG, "setTelephonyProperty: invalid phoneId=" + phoneId +
-                        " property=" + property +
-                        " value=" + value);
-            }
-        }
-
-        @Override
-        public String getTelephonyProperty(int phoneId, String property, String defaultVal) {
-            String result = defaultVal;
-            if (SubscriptionManager.isValidPhoneId(phoneId)) {
-                String actualProp = getActualProp(phoneId, property);
-                String propVal = SystemProperties.get(actualProp);
-                if (!propVal.isEmpty()) {
-                    result = propVal;
-                    Rlog.d(RILJ_LOG_TAG, "getTelephonyProperty: return result=" + result +
-                            " phoneId=" + phoneId +
-                            " property=" + property +
-                            " defaultVal=" + defaultVal +
-                            " actualProp=" + actualProp +
-                            " propVal=" + propVal);
-                }
-            } else {
-                Rlog.e(RILJ_LOG_TAG, "getTelephonyProperty: invalid phoneId=" + phoneId +
-                        " property=" + property +
-                        " defaultVal=" + defaultVal);
-            }
-            return result;
-        }
-
-        private String getActualProp(int phoneId, String prop) {
-            return phoneId <= 0 ? prop : prop + (phoneId + 1);
-        }
+    static {
+        RAW_HOOK_OEM_CMD_SWITCH_DATAPREFER = new byte[] { 0x09, 0x04 };
     }
 
     public young23gRIL(Context context, int preferredNetworkType, int cdmaSubscription) {
@@ -114,95 +65,114 @@ public class young23gRIL extends SamsungSPRDRIL implements CommandsInterface {
     }
 
     @Override
-    public void startLceService(int reportIntervalMs, boolean pullMode, Message response) {
-        riljLog("Link Capacity Estimate (LCE) service is not supported!");
+    public void
+    dial(String address, int clirMode, UUSInfo uusInfo, Message result) {
+        RILRequest rr = RILRequest.obtain(RIL_REQUEST_DIAL, result);
+
+        rr.mParcel.writeString(address);
+        rr.mParcel.writeInt(clirMode);
+        rr.mParcel.writeInt(0);     // CallDetails.call_type
+        rr.mParcel.writeInt(1);     // CallDetails.call_domain
+        rr.mParcel.writeString(""); // CallDetails.getCsvFromExtras
+
+        if (uusInfo == null) {
+            rr.mParcel.writeInt(0); // UUS information is absent
+        } else {
+            rr.mParcel.writeInt(1); // UUS information is present
+            rr.mParcel.writeInt(uusInfo.getType());
+            rr.mParcel.writeInt(uusInfo.getDcs());
+            rr.mParcel.writeByteArray(uusInfo.getUserData());
+        }
+
+        if (RILJ_LOGD) riljLog(rr.serialString() + "> " + requestToString(rr.mRequest));
+
+        send(rr);
+    }
+
+    @Override
+    public void setDataAllowed(boolean allowed, Message result) {
+        if (RILJ_LOGD) riljLog("setDataAllowed: allowed:" + allowed + " msg:" + result);
+        if (allowed) {
+            invokeOemRilRequestRaw(RAW_HOOK_OEM_CMD_SWITCH_DATAPREFER, result);
+        } else {
+            if (result != null) {
+                // Fake the response since we are doing nothing to disallow mobile data
+                AsyncResult.forMessage(result, 0, null);
+                result.sendToTarget();
+            }
+        }
+    }
+
+    @Override
+    public void getRadioCapability(Message response) {
+        String rafString = mContext.getResources().getString(
+            com.android.internal.R.string.config_radio_access_family);
+        if (RILJ_LOGD) riljLog("getRadioCapability: returning static radio capability [" + rafString + "]");
         if (response != null) {
-            AsyncResult.forMessage(response, null, new CommandException(
-                    CommandException.Error.REQUEST_NOT_SUPPORTED));
+            Object ret = makeStaticRadioCapability();
+            AsyncResult.forMessage(response, ret, null);
             response.sendToTarget();
         }
     }
 
     @Override
-    protected Object
-    responseCallList(Parcel p) {
-        int num;
-        int voiceSettings;
-        ArrayList<DriverCall> response;
-        DriverCall dc;
+    protected Object responseFailCause(Parcel p) {
+        int numInts = p.readInt();
+        int response[] = new int[numInts];
+        for (int i = 0 ; i < numInts ; i++)
+            response[i] = p.readInt();
+        LastCallFailCause failCause = new LastCallFailCause();
+        failCause.causeCode = response[0];
+        if (p.dataAvail() > 0)
+            failCause.vendorCause = p.readString();
+        return failCause;
+    }
 
-        num = p.readInt();
-        response = new ArrayList<DriverCall>(num);
-
-        if (RILJ_LOGV) {
-            riljLog("responseCallList: num=" + num +
-                    " mEmergencyCallbackModeRegistrant=" + mEmergencyCallbackModeRegistrant +
-                    " mTestingEmergencyCall=" + mTestingEmergencyCall.get());
-        }
-        for (int i = 0 ; i < num ; i++) {
-            dc = new DriverCall();
-
-            dc.state = DriverCall.stateFromCLCC(p.readInt());
-            // & 0xff to truncate to 1 byte added for us, not in RIL.java
-            dc.index = p.readInt() & 0xff;
-            dc.TOA = p.readInt();
-            dc.isMpty = (0 != p.readInt());
-            dc.isMT = (0 != p.readInt());
-            dc.als = p.readInt();
-            voiceSettings = p.readInt();
-            dc.isVoice = (0 != voiceSettings);
-            boolean isVideo = (0 != p.readInt());
-            int call_type = p.readInt();            // Samsung CallDetails
-            int call_domain = p.readInt();          // Samsung CallDetails
-            String csv = p.readString();            // Samsung CallDetails
-            dc.isVoicePrivacy = (0 != p.readInt());
-            dc.number = p.readString();
-            int np = p.readInt();
-            dc.numberPresentation = DriverCall.presentationFromCLIP(np);
-            dc.name = p.readString();
-            dc.namePresentation = p.readInt();
-            int uusInfoPresent = p.readInt();
-            if (uusInfoPresent == 1) {
-                dc.uusInfo = new UUSInfo();
-                dc.uusInfo.setType(p.readInt());
-                dc.uusInfo.setDcs(p.readInt());
-                byte[] userData = p.createByteArray();
-                dc.uusInfo.setUserData(userData);
-                riljLogv(String.format("Incoming UUS : type=%d, dcs=%d, length=%d",
-                                dc.uusInfo.getType(), dc.uusInfo.getDcs(),
-                                dc.uusInfo.getUserData().length));
-                riljLogv("Incoming UUS : data (string)="
-                        + new String(dc.uusInfo.getUserData()));
-                riljLogv("Incoming UUS : data (hex): "
-                        + IccUtils.bytesToHexString(dc.uusInfo.getUserData()));
-            } else {
-                riljLogv("Incoming UUS : NOT present!");
+    @Override
+    protected void processUnsolicited(Parcel p, int type) {
+        int originalDataPosition = p.dataPosition();
+        int response = p.readInt();
+        Object ret;
+        try {
+            switch (response) {
+            case RIL_UNSOL_DEVICE_READY_NOTI:
+                ret = responseVoid(p);
+                break;
+            case RIL_UNSOL_AM:
+                ret = responseString(p);
+                break;
+            case RIL_UNSOL_SIM_PB_READY:
+                ret = responseVoid(p);
+                break;
+            default:
+                p.setDataPosition(originalDataPosition);
+                super.processUnsolicited(p, type);
+                return;
             }
-
-            // Make sure there's a leading + on addresses with a TOA of 145
-            dc.number = PhoneNumberUtils.stringFromStringAndTOA(dc.number, dc.TOA);
-
-            response.add(dc);
-
-            if (dc.isVoicePrivacy) {
-                mVoicePrivacyOnRegistrants.notifyRegistrants();
-                riljLog("InCall VoicePrivacy is enabled");
-            } else {
-                mVoicePrivacyOffRegistrants.notifyRegistrants();
-                riljLog("InCall VoicePrivacy is disabled");
-            }
+        } catch (Throwable tr) {
+            Rlog.e(RILJ_LOG_TAG, "Exception processing unsol response: " + response +
+                    "Exception:" + tr.toString());
+            return;
         }
-
-        Collections.sort(response);
-
-        if ((num == 0) && mTestingEmergencyCall.getAndSet(false)) {
-            if (mEmergencyCallbackModeRegistrant != null) {
-                riljLog("responseCallList: call ended, testing emergency call," +
-                            " notify ECM Registrants");
-                mEmergencyCallbackModeRegistrant.notifyRegistrant();
+        switch (response) {
+        case RIL_UNSOL_DEVICE_READY_NOTI:
+            if (RILJ_LOGD) riljLog("[UNSL]< UNSOL_DEVICE_READY_NOTI");
+            break;
+        case RIL_UNSOL_AM: {
+            String amString = (String) ret;
+            if (RILJ_LOGD) riljLog("[UNSL]< UNSOL_AM '" + amString + "'");
+            try {
+                Runtime.getRuntime().exec("am " + amString);
+            } catch (IOException e) {
+                e.printStackTrace();
+                Rlog.e(RILJ_LOG_TAG, "am " + amString + " could not be executed.");
             }
+            break;
         }
-
-        return response;
+        case RIL_UNSOL_SIM_PB_READY:
+            if (RILJ_LOGD) riljLog("[UNSL]< UNSOL_SIM_PB_READY");
+            break;
+        }
     }
 }
+

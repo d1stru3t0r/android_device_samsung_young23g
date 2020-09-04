@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Inherit from SPRD common configs
--include device/samsung/sprd-common/BoardConfigCommon.mk
-
 # Inherit from the proprietary version
 -include vendor/samsung/young23g/BoardConfigVendor.mk
 
@@ -29,6 +26,7 @@ TARGET_CPU_VARIANT := cortex-a7
 TARGET_CPU_SMP := false
 ARCH_ARM_HAVE_TLS_REGISTER := true
 TARGET_BOOTLOADER_BOARD_NAME := SC7715T
+TARGET_BOARD_SOC_VENDOR := sprd
 BOARD_VENDOR := samsung
 
 # Config u-boot
@@ -44,11 +42,16 @@ TARGET_USERIMAGES_USE_EXT4 := true
 TARGET_USERIMAGES_USE_F2FS := true
 BOARD_HAS_LARGE_FILESYSTEM := true
 
+# CMHW
+BOARD_HARDWARE_CLASS := device/samsung/young23g/cmhw
+
 # RIL
 BOARD_RIL_CLASS += ../../../device/samsung/young23g/ril
-COMMON_GLOBAL_CFLAGS += -DDISABLE_ASHMEM_TRACKING
+#COMMON_GLOBAL_CFLAGS += -DDISABLE_ASHMEM_TRACKING
 
 # Bluetooth
+BOARD_HAVE_BLUETOOTH := true
+BOARD_HAVE_BLUETOOTH_BCM := true
 BOARD_BLUETOOTH_BDROID_BUILDCFG_INCLUDE_DIR := device/samsung/young23g/bluetooth
 BOARD_BLUEDROID_VENDOR_CONF := device/samsung/young23g/bluetooth/libbt_vndcfg.txt
 
@@ -73,7 +76,7 @@ WIFI_BAND := 802_11_ABG
 BOARD_HAVE_SAMSUNG_WIFI := true
 
 # Graphics
-HWUI_COMPILE_FOR_PERF := true
+#HWUI_COMPILE_FOR_PERF := true
 TARGET_REQUIRES_SYNCHRONOUS_SETSURFACE := true
 
 # HWComposer
@@ -85,14 +88,19 @@ TARGET_SCREEN_HEIGHT := 480
 TARGET_SCREEN_WIDTH := 320
 
 # Audio
+BOARD_USES_TINYALSA_AUDIO := true
+TARGET_TINY_ALSA_IGNORE_SILENCE_SIZE := true
 BOARD_USE_LIBATCHANNEL_WRAPPER := true
 
 # Media
-COMMON_GLOBAL_CFLAGS += -DBOARD_CANT_REALLOCATE_OMX_BUFFERS
+#COMMON_GLOBAL_CFLAGS += -DBOARD_CANT_REALLOCATE_OMX_BUFFERS
 
 # Board specific features
 BOARD_USE_SAMSUNG_COLORFORMAT := true
-COMMON_GLOBAL_CFLAGS += -DUSE_LEGACY_BLOBS
+#COMMON_GLOBAL_CFLAGS += -DUSE_LEGACY_BLOBS
+
+# Graphics
+USE_OPENGL_RENDERER := true
 
 # Healthd
 BOARD_HAL_STATIC_LIBRARIES := libhealthd.scx15
@@ -104,11 +112,14 @@ BOARD_CHARGING_MODE_BOOTING_LPM := /sys/class/power_supply/battery/batt_lp_charg
 CHARGING_ENABLED_PATH := /sys/class/power_supply/battery/batt_lp_charging
 BACKLIGHT_PATH := /sys/class/backlight/panel/brightness
 
+# Jack
+ANDROID_COMPILE_WITH_JACK := true
+
 # Kernel
 BOARD_KERNEL_BASE := 0x00000000
 BOARD_KERNEL_CMDLINE := console=ttyS1,115200n8
 BOARD_KERNEL_PAGESIZE := 2048
-TARGET_KERNEL_CROSS_COMPILE_PREFIX := arm-eabi-
+TARGET_KERNEL_CROSS_COMPILE_PREFIX := arm-linux-androideabi-
 TARGET_KERNEL_CONFIG := young23g-native_hw03_defconfig
 TARGET_KERNEL_SOURCE := kernel/samsung/young23g
 
@@ -123,7 +134,7 @@ TARGET_OTA_ASSERT_DEVICE := young23g,SM-G130H,SM-G130HN,vivalto3gvn,vivalto3gvnd
 BOARD_SEPOLICY_DIRS += device/samsung/young23g/sepolicy
 
 # Memory
-MALLOC_IMPL := dlmalloc
+MALLOC_SVELTE := true
 BOARD_USES_LEGACY_MMAP := true
 
 # Enable dex-preoptimization to speed up the first boot sequence
@@ -137,7 +148,7 @@ TARGET_RECOVERY_FSTAB := device/samsung/young23g/rootdir/fstab.scx15
 TARGET_RECOVERY_TWRP := true
 
 ifeq ($(TARGET_RECOVERY_TWRP),true)
-RECOVERY_VARIANT := twrp
+#RECOVERY_VARIANT := twrp
 TARGET_USES_LOGD := true
 # TWRP
 TW_INTERNAL_STORAGE_PATH := "/data/media/0"
